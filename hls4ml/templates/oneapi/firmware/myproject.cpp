@@ -1,5 +1,5 @@
 //
-//    rfnoc-hls-neuralnet: Vivado HLS code for neural-net building blocks
+//    rfnoc-hls-neuralnet: HLS code for neural-net building blocks
 //
 //    Copyright (C) 2017 EJ Kreinar
 //
@@ -20,30 +20,29 @@
 #include "myproject.h"
 
 //hls4ml init engine
-//hls4ml init nn stream
 dnnl::stream engine_stream(eng); 
 std::vector<dnnl::primitive> net; // neural network as a vector
 std::vector<std::unordered_map<int, dnnl::memory>> net_args; // nn arguments
 dnnl::memory input_data_memory;
-dnnl::memory output_memory;
+dnnl::memory output_data_memory;
 
 extern "C" {
 
-    void compile_model() {
+void compile_model() {
 
-        //hls4ml insert layers
-
-    }
-    
-    void myproject_float(float *input_data, float *output_data) {
-
-        //hls4ml execute network
-        write_to_dnnl_memory(input_data, input_data_memory);
-        for (size_t i = 0; i < net.size(); ++i)
-                net.at(i).execute(engine_stream, net_args.at(i));
-        engine_stream.wait();
-
-        //hls4ml read output data from memory
-    }
+    //hls4ml insert layers
 
 }
+
+void myproject_float(float* input_data, float* output_data) {
+
+    //hls4ml execute network
+    write_to_dnnl_memory(input_data, input_data_memory);
+    for (size_t i = 0; i < net.size(); ++i)
+        net.at(i).execute(engine_stream, net_args.at(i));
+    engine_stream.wait();
+
+    //hls4ml read output data from memory
+}
+
+} // extern "C"

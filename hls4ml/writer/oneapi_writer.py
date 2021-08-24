@@ -64,14 +64,13 @@ class OneApiWriter(Writer):
         f = open(os.path.join(filedir,'../templates/oneapi/firmware/myproject.cpp'),'r')
         fout = open('{}/firmware/{}.cpp'.format(model.config.get_output_dir(), model.config.get_project_name()),'w')
 
-        indent = '        '
+        indent = '    '
         for line in f.readlines():
             if 'myproject' in line:
                 newline = line.replace('myproject', model.config.get_project_name())
             elif '//hls4ml init engine' in line:
                 newline = line
-                engine = f"dnnl::engine eng(dnnl::engine::kind::{model.config.device}, 0);\n"
-                newline += indent + engine
+                newline += f"dnnl::engine eng(dnnl::engine::kind::{model.config.device}, 0);\n"
             elif '//hls4ml insert layers' in line:
                 newline = line
                 for layer in model.get_layers():
@@ -87,19 +86,11 @@ class OneApiWriter(Writer):
                             load_weights = f'nnet::load_weights_from_txt<{data_type}, {w.data_length}>({buffer_name}.data(), "{w.name}.txt");\n'
                         newline += indent + create_buffer
                         newline += indent + load_weights
-                    dcpp_definition = layer.definition_dcpp()
+                    dcpp_definition = layer.definition_dpcpp()
                     if dcpp_definition is not None:
                         newline += indent + dcpp_definition + "\n"
             elif '//hls4ml read output data from memory' in line:
-                newline = line
-                last_layer = next(reversed(model.get_layers()))
-                if last_layer.memory_descriptor == True:
-                    output_memory = f"{last_layer.name}{last_layer.index}_memory"
-                else:
-                    input_node_with_mem = last_layer.get_input_node_with_mem_desc(last_layer)
-                    output_memory = f"{input_node_with_mem.name}_memory"
-                read_from_dnnl_memory = f"read_from_dnnl_memory(output_data, {output_memory});\n"
-                newline += indent + read_from_dnnl_memory
+                newline = line + indent + "read_from_dnnl_memory(output_data, output_data_memory);\n"
             else:
                 newline = line
             fout.write(newline)
@@ -130,7 +121,6 @@ class OneApiWriter(Writer):
                 self.save_weights_to_file(weights, model.config.get_output_dir())
 
     def write_utils(self, model):
-
         filedir = os.path.dirname(os.path.abspath(__file__))
         srcpath = os.path.join(filedir,'../templates/oneapi/utils/')
         dstpath = '{}/firmware/utils/'.format(model.config.get_output_dir())
@@ -139,7 +129,6 @@ class OneApiWriter(Writer):
         copytree(srcpath, dstpath)
 
     def write_build_script(self, model):
-    
         filedir = os.path.dirname(os.path.abspath(__file__))
         f = open(os.path.join(filedir,'../templates/oneapi/build_lib.sh'),'r')
         fout = open('{}/build_lib.sh'.format(model.config.get_output_dir()),'w')

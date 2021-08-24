@@ -20,6 +20,13 @@ oneapi_padding2D_map_to_cpp = {
     "casual": "{1, 1}"
 }
 
+oneapi_activation_function_map = {
+    "relu": "relu",
+    "sigmoid": "logistic",
+    "leaky_relu": "relu",
+    # thresholded_relu, prelu, 
+}
+
 class Quantizer(object):
     def __init__(self, bits, hls_type):
         self.bits = bits
@@ -516,6 +523,7 @@ class Input(Layer):
         type_name = self.attributes.get('type_name', default_type_name)
         precision = self.attributes.get('precision', None)
         self.add_output_variable(shape, dims, var_name=self.name, type_name=type_name, precision=precision)
+        self._input_template = self.model.config.backend.get_config_template("Input")
 
     def function_cpp(self):
         return None
@@ -523,24 +531,22 @@ class Input(Layer):
     def config_cpp(self):
         return None
     
-    def definition_dcpp(self):
+    def definition_dpcpp(self):
+        """Returns oneAPI definition for Dense Layer"""
         input_params = {}
-        input_params["layer_name"] = "input"
-        input_params["memory_object"] = "data"
-        input_params["memory_object_type"] = ""
-        input_params["placeholder"] = ""
         batch_size = f"{self.model.batch_size}, "
         input_dims = self.attributes['input_shape']
+        
+        input_params["data_type"] = "f32"
+        input_params["format_tag"] = string.ascii_lowercase[:len(input_dims)+1]
         if self.get_attr('data_format') == 'channels_first':
             input_params["dims"] = batch_size + str(input_dims).replace('[','').replace(']','')
         else:
             input_params["dims"] = batch_size + str(input_dims[-1])
             if len(input_dims) > 1:
                 input_params["dims"] += ',' + ','.join(map(str, input_dims[:-1]))
-        input_params["data_type"] = "f32"
-        input_params["format_tag"] = string.ascii_lowercase[:len(input_dims)+1]
 
-        return self._memory_template.format(**input_params)
+        return self._input_template.format(**input_params)
 
 class Reshape(Layer):
     def initialize(self):
@@ -612,22 +618,26 @@ class Dense(Layer):
 
         return self._config_template.format(**params)
 
-    def definition_dcpp(self):
+    def definition_dpcpp(self):
         """Returns oneAPI definition for Dense Layer"""
         dense_params = {}
-        dense_params["layer_name"] = self.name
-        dense_params["memory_object_type"] = "" if "output" in self.name else "auto"
-        dense_params["data_type"] = self.get_weights_precision()
         batch_size = f"{self.model.batch_size}, "
+        input_layer = self.get_input_node_with_mem_desc(self)
         output_dims = self.get_output_variable().shape
-        dense_params["output_dims"] = batch_size + str(output_dims).replace('[','').replace(']','')
-        if self.get_input_node().index == 1:
+
+        dense_params["layer_name"] = self.name
+        dense_params["data_type"] = self.get_weights_precision()
+        dense_params["input_desc"] = f"{input_layer.name}_memory.get_desc()"
+        dense_params["input_memory"] = f"{input_layer.name}_memory"
+        dense_params["memory_object_type"] = "auto"
+        dense_params["output_dims"] = batch_size + str(output_dims).replace('[','').replace(']','') #''.join(filter(lambda ch: ch not in "[]", output_dims))
+        dense_params["output_memory"] = f"{self.name}_memory"
+        if self.get_input_node().index == 1: # first layer
             dense_params["input_desc"] = "input_data_md"
             dense_params["input_memory"] = "input_data_memory"
-        else:
-            input_layer = self.get_input_node_with_mem_desc(self)
-            dense_params["input_desc"] = f"{input_layer.name}_memory.get_desc()"
-            dense_params["input_memory"] = f"{input_layer.name}_memory"
+        elif "output" in self.name: # last layer
+            dense_params["memory_object_type"] = ""
+            dense_params["output_memory"] = "output_data_memory"
         dense_config = self._config_template.format(**dense_params)
 
         weight_params = self._default_weight_params()
@@ -699,24 +709,28 @@ class Conv1D(Layer):
         else:
             return self._config_template[0].format(**params)
     
-    def definition_dcpp(self):
+    def definition_dpcpp(self):
         """Returns oneAPI definition for Conv1D Layer"""
         conv1d_params = {}
-        conv1d_params["layer_name"] = self.name
-        conv1d_params["memory_object_type"] = "" if "output" in self.name else "auto"
-        conv1d_params["data_type"] = self.get_weights_precision()
         batch_size = f"{self.model.batch_size}, "
+        input_layer = self.get_input_node_with_mem_desc(self)
         output_dims = self.get_output_variable().shape
-        conv1d_params["output_dims"] = batch_size + str(output_dims[-1]) + ', ' + str(output_dims[0])
-        if self.get_input_node().index == 1:
-            conv1d_params["input_desc"] = "input_data_md"
-            conv1d_params["input_memory"] = "input_data_memory"
-        else:
-            input_layer = self.get_input_node_with_mem_desc(self)
-            conv1d_params["input_desc"] = f"{input_layer.name}_memory.get_desc()"
-            conv1d_params["input_memory"] = f"{input_layer.name}_memory"
+
+        conv1d_params["layer_name"] = self.name
+        conv1d_params["data_type"] = self.get_weights_precision()
         conv1d_params["strides"] = '{' + str(self.get_attr('strides', "1")) + '}'
         conv1d_params["padding"] = oneapi_padding1D_map_to_cpp[self.get_attr('padding', 'valid')]
+        conv1d_params["input_desc"] = f"{input_layer.name}_memory.get_desc()"
+        conv1d_params["input_memory"] = f"{input_layer.name}_memory"
+        conv1d_params["memory_object_type"] = "auto"
+        conv1d_params["output_dims"] = batch_size + str(output_dims[-1]) + ', ' + str(output_dims[0])
+        conv1d_params["output_memory"] = f"{self.name}_memory"            
+        if self.get_input_node().index == 1: # first layer
+            conv1d_params["input_desc"] = "input_data_md"
+            conv1d_params["input_memory"] = "input_data_memory"
+        elif "output" in self.name: # last layer
+            conv1d_params["memory_object_type"] = ""
+            conv1d_params["output_memory"] = "output_data_memory"            
         conv1d_config = self._config_template.format(**conv1d_params)
 
         weight_params = self._conv_weight_params()
@@ -791,24 +805,28 @@ class Conv2D(Layer):
         else:
             return self._config_template[0].format(**params)
 
-    def definition_dcpp(self):
+    def definition_dpcpp(self):
         """Returns oneAPI definition for Conv2D Layer"""
         conv2d_params = {}
-        conv2d_params["layer_name"] = self.name
-        conv2d_params["memory_object_type"] = "" if "output" in self.name else "auto"
-        conv2d_params["data_type"] = self.get_weights_precision()
         batch_size = f"{self.model.batch_size}, "
+        input_layer = self.get_input_node_with_mem_desc(self)
         output_dims = self.get_output_variable().shape
-        conv2d_params["output_dims"] = batch_size + str(output_dims[-1]) + ', ' + str(output_dims[0]) + ', ' + str(output_dims[1])
-        if self.get_input_node().index == 1:
-            conv2d_params["input_desc"] = "input_data_md"
-            conv2d_params["input_memory"] = "input_data_memory"
-        else:
-            input_layer = self.get_input_node_with_mem_desc(self)
-            conv2d_params["input_desc"] = f"{input_layer.name}_memory.get_desc()"
-            conv2d_params["input_memory"] = f"{input_layer.name}_memory"
+
+        conv2d_params["layer_name"] = self.name
+        conv2d_params["data_type"] = self.get_weights_precision()
         conv2d_params["strides"] = self.get_attr('stride', '{1, 1}')
         conv2d_params["padding"] = oneapi_padding2D_map_to_cpp[self.get_attr('padding', 'valid')]
+        conv2d_params["input_desc"] = f"{input_layer.name}_memory.get_desc()"
+        conv2d_params["input_memory"] = f"{input_layer.name}_memory"
+        conv2d_params["memory_object_type"] = "auto"
+        conv2d_params["output_dims"] = batch_size + str(output_dims[-1]) + ', ' + str(output_dims[0]) + ', ' + str(output_dims[1])
+        conv2d_params["output_memory"] = f"{self.name}_memory"
+        if self.get_input_node().index == 1: # first layer
+            conv2d_params["input_desc"] = "input_data_md"
+            conv2d_params["input_memory"] = "input_data_memory"
+        elif "output" in self.name: # last layer
+            conv2d_params["memory_object_type"] = ""
+            conv2d_params["output_memory"] = "output_data_memory"
         conv2d_config = self._config_template.format(**conv2d_params)
 
         weight_params = self._conv_weight_params()
@@ -839,27 +857,29 @@ class Pooling1D(Layer):
 
         return self._config_template.format(**params)
 
-    def definition_dcpp(self):
+    def definition_dpcpp(self):
         """Returns oneAPI definition for Pooling1D"""
         pool1d_params = {}
-        pool1d_params["layer_name"] = self.name
-        input_layer = self.get_input_node_with_mem_desc(self)
-        pool1d_params["input_desc"] = f"{input_layer.name}_memory.get_desc()"
-        pool1d_params["memory_object_type"] = "" if "output" in self.name else "auto"
-        pool1d_params["data_type"] = input_layer.get_weights_precision()
         batch_size = f"{self.model.batch_size}, "
+        input_layer = self.get_input_node_with_mem_desc(self)
         output_dims = self.get_output_variable().shape
-        pool1d_params["output_dims"] = batch_size + str(output_dims[-1]) + ', ' + str(output_dims[0])
+        
+        pool1d_params["layer_name"] = self.name
+        pool1d_params["data_type"] = input_layer.get_weights_precision()
         pool1d_params["strides"] = '{' + str(self.get_attr('stride', '2')) + '}'
         pool1d_params["padding"] = oneapi_padding1D_map_to_cpp[self.get_attr('padding', 'valid')]
         pool1d_params["kernel"] = str(self.attributes['n_out'])
+        pool1d_params["input_desc"] = f"{input_layer.name}_memory.get_desc()"
+        pool1d_params["input_memory"] = f"{input_layer.name}_memory"
+        pool1d_params["memory_object_type"] = "auto"
+        pool1d_params["output_dims"] = batch_size + str(output_dims[-1]) + ', ' + str(output_dims[0])
+        pool1d_params["output_memory"] = f"{self.name}_memory"
         if self.get_input_node().index == 1:
             pool1d_params["input_desc"] = "input_data_md"
             pool1d_params["input_memory"] = "input_data_memory"
         else:
-            input_layer = self.get_input_node_with_mem_desc(self)
-            pool1d_params["input_desc"] = f"{input_layer.name}_memory.get_desc()"
-            pool1d_params["input_memory"] = f"{input_layer.name}_memory"
+            pool1d_params["memory_object_type"] = ""
+            pool1d_params["output_memory"] = "output_data_memory"
         pool1d_config = self._config_template.format(**pool1d_params)
 
         return pool1d_config
@@ -888,31 +908,31 @@ class Pooling2D(Layer):
 
         return self._config_template.format(**params)
 
-    def definition_dcpp(self):
+    def definition_dpcpp(self):
         """Returns oneAPI definition for Pooling2D"""
         pool2d_params = {}
-        pool2d_params["layer_name"] = self.name
-        input_layer = self.get_input_node_with_mem_desc(self)
-        pool2d_params["input_desc"] = f"{input_layer.name}_memory.get_desc()"
-        pool2d_params["memory_object_type"] = "" if "output" in self.name else "auto"
-        pool2d_params["data_type"] = input_layer.get_weights_precision()
         batch_size = f"{self.model.batch_size}, "
+        input_layer = self.get_input_node_with_mem_desc(self)
         output_dims = self.get_output_variable().shape
-        pool2d_params["output_dims"] = batch_size + str(output_dims[-1]) + ', ' + str(output_dims[0]) + ', ' + str(output_dims[1])
+        
+        pool2d_params["layer_name"] = self.name
+        pool2d_params["data_type"] = input_layer.get_weights_precision()
         pool2d_params["strides"] = self.get_attr('stride', '{2, 2}')
         pool2d_params["padding"] = oneapi_padding2D_map_to_cpp[self.get_attr('padding', 'valid')]
         pool2d_params["kernel"] = str(self.attributes['pool_height']) + ', ' +  str(self.attributes['pool_width'])
+        pool2d_params["input_desc"] = f"{input_layer.name}_memory.get_desc()"
+        pool2d_params["input_memory"] = f"{input_layer.name}_memory"
+        pool2d_params["memory_object_type"] = "auto"
+        pool2d_params["output_dims"] = batch_size + str(output_dims[-1]) + ', ' + str(output_dims[0]) + ', ' + str(output_dims[1])
+        pool2d_params["output_memory"] = f"{self.name}_memory"
         if self.get_input_node().index == 1:
             pool2d_params["input_desc"] = "input_data_md"
             pool2d_params["input_memory"] = "input_data_memory"
-        else:
-            input_layer = self.get_input_node_with_mem_desc(self)
-            pool2d_params["input_desc"] = f"{input_layer.name}_memory.get_desc()"
-            pool2d_params["input_memory"] = f"{input_layer.name}_memory"
+        elif "output" in self.name:
+            pool2d_params["memory_object_type"] = ""
         pool2d_config = self._config_template.format(**pool2d_params)
 
         return pool2d_config
-
 
 class Activation(Layer):
     def initialize(self):
@@ -940,17 +960,20 @@ class Activation(Layer):
 
         return self._config_template.format(**params)
     
-    def definition_dcpp(self):
+    def definition_dpcpp(self):
         """Returns oneAPI definition for Activation Function"""
         params = {}
-        params["type"] = self.get_attr('activation').lower()
-        params["layer_name"] = self.name
         input_layer = self.get_input_node_with_mem_desc(self)
-        params["input_desc"] = f"{input_layer.name}_memory.get_desc()"
+        
+        params["type"] = oneapi_activation_function_map.get(self.get_attr('activation').lower())
+        params["layer_name"] = self.name
         params["alpha"] = self.get_attr('activ_param', 0.0)
-        params["input_memory"] = f"{input_layer.name}_memory"
-        params["output_memory"] = f"{input_layer.name}_memory"
-
+        if "output" in self.name: # last layer
+            params["input_desc"] = "output_data_memory.get_desc()"
+            params["memory"] = "output_data_memory"
+        else:
+            params["input_desc"] = f"{input_layer.name}_memory.get_desc()"
+            params["memory"] = f"{input_layer.name}_memory"
         return self._config_template.format(**params)
 
 class ParametrizedActivation(Activation):
@@ -998,15 +1021,16 @@ class Softmax(Activation):
             else:
                 self.set_attr('implementation', self.model.config.get_strategy(self).lower())
 
-    def definition_dcpp(self):
+    def definition_dpcpp(self):
         """Returns oneAPI definition for Activation Function"""
         params = {}
-        params["layer_name"] = self.name
         input_layer = self.get_input_node_with_mem_desc(self)
-        params["input_desc"] = f"{input_layer.name}_memory.get_desc()"
+        memory = "output_data_memory" if "output" in self.name else f"{input_layer.name}_memory"
+
+        params["layer_name"] = self.name
+        params["input_desc"] = f"{memory}.get_desc()"
         params["axis"] = self.get_attr('axis', 1)
-        params["input_memory"] = f"{input_layer.name}_memory"
-        params["output_memory"] = f"{input_layer.name}_memory"
+        params["memory"] = memory
 
         return self._config_template.format(**params)
         
@@ -1454,7 +1478,7 @@ layer_map = {
     'GarNet'             : GarNet,
     'GarNetStack'        : GarNetStack,
     # TensorFlow-specific layers:
-    'BiasAdd'            : BiasAdd,
+    'BiasAdd'            : BiasAdd
 }
 
 def register_layer(name, clazz):

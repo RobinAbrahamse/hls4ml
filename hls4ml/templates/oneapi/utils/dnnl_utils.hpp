@@ -55,20 +55,20 @@ inline void read_from_dnnl_memory(void *handle, dnnl::memory &mem) {
     dnnl::engine eng = mem.get_engine();
     size_t size = mem.get_desc().get_size();
 
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
     bool is_cpu_sycl = (DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
             && eng.get_kind() == dnnl::engine::kind::cpu);
     bool is_gpu_sycl = (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
             && eng.get_kind() == dnnl::engine::kind::gpu);
     if (is_cpu_sycl || is_gpu_sycl) {
-#ifdef DNNL_USE_SYCL_BUFFERS
+#if defined(DNNL_USE_SYCL_BUFFERS)
         auto buffer = mem.get_sycl_buffer<uint8_t>();
         auto src = buffer.get_access<cl::sycl::access::mode::read>();
         uint8_t *src_ptr = src.get_pointer();
 #elif defined(DNNL_USE_DPCPP_USM)
-        uint8_t *src_ptr = (uint8_t *)mem.get_data_handle();
+        uint8_t *src_ptr = (uint8_t *) mem.get_data_handle();
 #else
-#error "Not expected"
+#error "Unexpected environment variable settings"
 #endif
         for (size_t i = 0; i < size; ++i)
             ((uint8_t *)handle)[i] = src_ptr[i];
@@ -95,8 +95,6 @@ inline void read_from_dnnl_memory(void *handle, dnnl::memory &mem) {
             ((uint8_t *)handle)[i] = src[i];
         return;
     }
-
-    assert(!"not expected");
 }
 
 // Read from handle, write to memory
@@ -104,20 +102,20 @@ inline void write_to_dnnl_memory(void *handle, dnnl::memory &mem) {
     dnnl::engine eng = mem.get_engine();
     size_t size = mem.get_desc().get_size();
 
-#if DNNL_WITH_SYCL
+#ifdef DNNL_WITH_SYCL
     bool is_cpu_sycl = (DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
             && eng.get_kind() == dnnl::engine::kind::cpu);
     bool is_gpu_sycl = (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
             && eng.get_kind() == dnnl::engine::kind::gpu);
     if (is_cpu_sycl || is_gpu_sycl) {
-#ifdef DNNL_USE_SYCL_BUFFERS
+#if defined(DNNL_USE_SYCL_BUFFERS)
         auto buffer = mem.get_sycl_buffer<uint8_t>();
         auto dst = buffer.get_access<cl::sycl::access::mode::write>();
         uint8_t *dst_ptr = dst.get_pointer();
 #elif defined(DNNL_USE_DPCPP_USM)
         uint8_t *dst_ptr = (uint8_t *)mem.get_data_handle();
 #else
-#error "Not expected"
+#error "Unexpected environment variable settings"
 #endif
         for (size_t i = 0; i < size; ++i)
             dst_ptr[i] = ((uint8_t *)handle)[i];
@@ -144,8 +142,6 @@ inline void write_to_dnnl_memory(void *handle, dnnl::memory &mem) {
             dst[i] = ((uint8_t *)handle)[i];
         return;
     }
-
-    assert(!"not expected");
 }
 
 #endif

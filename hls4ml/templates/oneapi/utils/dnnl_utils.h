@@ -17,7 +17,6 @@
 #ifndef EXAMPLE_UTILS_H
 #define EXAMPLE_UTILS_H
 
-#include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -146,8 +145,6 @@ static inline void read_from_dnnl_memory(void *handle, dnnl_memory_t mem) {
         }
         return;
     }
-
-    assert(!"not expected");
 }
 
 // Read from handle, write to memory
@@ -210,8 +207,6 @@ static inline void write_to_dnnl_memory(void *handle, dnnl_memory_t mem) {
         }
         return;
     }
-
-    assert(!"not expected");
 }
 
 #endif

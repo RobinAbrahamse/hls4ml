@@ -1,5 +1,5 @@
 //
-//    rfnoc-hls-neuralnet: Vivado HLS code for neural-net building blocks
+//    rfnoc-hls-neuralnet: HLS code for neural-net building blocks
 //
 //    Copyright (C) 2017 EJ Kreinar
 //
@@ -26,7 +26,7 @@
 #include "utils/nnet_helpers.h"
 
 extern "C" {
-    void myproject_float(float *input_data, float *ouput_data);
+    void myproject_float(float* input_data, float* output_data);
     void compile_model();
 }
 #endif

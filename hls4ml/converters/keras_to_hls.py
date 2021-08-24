@@ -156,6 +156,11 @@ def keras_to_hls(config):
     #Define layers to skip for conversion to HLS
     skip_layers = ['Dropout', 'Flatten']
     #All supported layers
+        #['Add', 'Subtract', 'Multiply', 'Average', 'Maximum', 'Minimum', 'Concatenate', 
+        #'Conv1D', 'Conv2D', 'GarNet', 'GarNetStack', 'InputLayer', 'Reshape', 'Dense', 
+        #'BinaryDense', 'TernaryDense', 'Activation', 'LeakyReLU', 'ThresholdedReLU', 'ELU', 
+        #'PReLU', 'BatchNormalization', 'MaxPooling1D', 'MaxPooling2D', 'AveragePooling1D', 
+        #'AveragePooling2D', 'Dropout', 'Flatten']
     supported_layers = get_supported_keras_layers() + skip_layers
 
     #Map inputs of skipped and split (activation) layers
