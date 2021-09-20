@@ -12,7 +12,17 @@ oneapi_data_types_map_to_cpp = {
     "f32": "float",
     "b16": "float",
     "s8": "signed short",
-    "u8": "unsinged short"
+    "u8": "unsigned short"
+}
+
+weights_names_map = {
+    "a": "alpha",
+    "b": "bias",
+    "d": "depthwise",
+    "p": "pointwise",
+    "s": "scale",
+    "w": "weights",
+    "z": "zero_bias"
 }
 
 class OneApiWriter(Writer):
@@ -41,12 +51,10 @@ class OneApiWriter(Writer):
 
         #fill c++ array.
         #not including internal brackets for multidimensional case
-        sep = ''
-        for x in array:
-            h_file.write(sep + x)
-            if write_txt_file:
-                txt_file.write(sep + x)
-            sep = ", "
+        txt = ", ".join(array)
+        h_file.write(txt)
+        if write_txt_file:
+            txt_file.write(txt)
         h_file.write("};\n")
         if write_txt_file:
             h_file.write("#endif\n")
@@ -72,12 +80,12 @@ class OneApiWriter(Writer):
                 newline = line
                 newline += f"dnnl::engine eng(dnnl::engine::kind::{model.config.device}, 0);\n"
             elif '//hls4ml insert layers' in line:
-                newline = line
+                newline = ''
                 for layer in model.get_layers():
                     for w in layer.get_weights():
                         data_type = oneapi_data_types_map_to_cpp[w.type.precision]
-                        weight_type = "weights" if "w" in w.name else "bias"
-                        buffer_name = f'{layer.name}_{weight_type}_buffer'
+                        weights_type = weights_names_map.get(w.name[0])
+                        buffer_name = f'{layer.name}_{weights_type}_buffer'
                         if w.__class__.__name__ == 'CompressedWeightVariable':
                             create_buffer = f'std::vector<{data_type}> {buffer_name}({w.nonzeros});\n'
                             load_weights = f'nnet::load_compressed_weights_from_txt<{data_type}, {w.nonzeros}>({buffer_name}.data(), "{w.name}.txt");\n'
@@ -89,8 +97,12 @@ class OneApiWriter(Writer):
                     dcpp_definition = layer.definition_dpcpp()
                     if dcpp_definition is not None:
                         newline += indent + dcpp_definition + "\n"
-            elif '//hls4ml read output data from memory' in line:
-                newline = line + indent + "read_from_dnnl_memory(output_data, output_data_memory);\n"
+                output_memory = f"{model.outputs[0]}_memory"
+                if model.sequential: # memory reuse optimization
+                    output_layer = model.graph.get(model.outputs[0])
+                    if not output_layer.memory_descriptor:
+                        output_memory = f"{output_layer.get_input_node_with_mem_desc(output_layer).name}_memory"
+                newline += f"{indent}output_data_memory = {output_memory};\n"
             else:
                 newline = line
             fout.write(newline)

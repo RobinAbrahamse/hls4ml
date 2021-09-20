@@ -28,14 +28,19 @@ dnnl::memory output_data_memory;
 
 extern "C" {
 
+/**
+ * Function sets up memory objects and reads&converts variables from files.
+ * Must be called before executing `myproject_float` function.
+*/
 void compile_model() {
-
     //hls4ml insert layers
-
 }
 
+/**
+ * Function inferences the model set up by `compile_model` function, 
+ * which must be called before.
+*/
 void myproject_float(float* input_data, float* output_data) {
-
     //hls4ml execute network
     write_to_dnnl_memory(input_data, input_data_memory);
     for (size_t i = 0; i < net.size(); ++i)
@@ -43,6 +48,7 @@ void myproject_float(float* input_data, float* output_data) {
     engine_stream.wait();
 
     //hls4ml read output data from memory
+    read_from_dnnl_memory(output_data, output_data_memory);
 }
 
 } // extern "C"

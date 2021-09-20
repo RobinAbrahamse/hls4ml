@@ -21,18 +21,6 @@ def parse_input_layer(keras_layer, input_names, input_shapes, data_reader, confi
     return layer, output_shape
 
 
-@keras_handler('Reshape')
-def parse_reshape_layer(keras_layer, input_names, input_shapes, data_reader, config):
-    assert(keras_layer["class_name"] == 'Reshape')
-
-    layer = parse_default_keras_layer(keras_layer, input_names)
-    
-    layer['target_shape'] = keras_layer['config']['target_shape']
-    output_shape = input_shapes[0][:1] + keras_layer['config']['target_shape']
-    
-    return layer, output_shape
-
-
 class BinaryQuantizer(Quantizer):
     def __init__(self, bits=2):
         if bits == 1:
@@ -87,7 +75,7 @@ def parse_dense_layer(keras_layer, input_names, input_shapes, data_reader, confi
     return layer, output_shape
 
 
-activation_layers = ['Activation', 'LeakyReLU', 'ThresholdedReLU', 'ELU', 'PReLU']
+activation_layers = ['Activation', 'LeakyReLU', 'ThresholdedReLU', 'ELU', 'PReLU', 'Softmax', 'ReLU']
 @keras_handler(*activation_layers)
 def parse_activation_layer(keras_layer, input_names, input_shapes, data_reader, config):
     assert(keras_layer['class_name'] in activation_layers)
@@ -102,16 +90,22 @@ def parse_activation_layer(keras_layer, input_names, input_shapes, data_reader, 
         layer['activ_param'] = keras_layer["config"].get('theta', 1.)
     elif layer['class_name'] == 'ELU':
         layer['activ_param'] = keras_layer["config"].get('alpha', 1.)
+    elif layer['class_name'] == 'ReLU':
+        layer['activ_param'] = keras_layer["config"].get('max_value')
+        # layer['activ_param'] = keras_layer["config"].get('negative_slope', 0.)
+        # layer['activ_param'] = keras_layer["config"].get('threshold', 0.)
 
     if layer['class_name'] == 'Activation' and layer['activation'] == 'softmax':
         layer['class_name'] = 'Softmax'
+    elif layer['class_name'] == 'ReLU':
+        layer['class_name'] = 'Activation'
     
     return layer, [shape for shape in input_shapes[0]]
 
 
 @keras_handler('BatchNormalization')
 def parse_batchnorm_layer(keras_layer, input_names, input_shapes, data_reader, config):
-    assert('BatchNormalization' in keras_layer['class_name'])
+    assert('BatchNormalization' in keras_layer['class_name'] or 'QConv2DBatchnorm' in keras_layer['class_name'])
 
     layer = parse_default_keras_layer(keras_layer, input_names)
 
