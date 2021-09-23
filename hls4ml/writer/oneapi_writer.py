@@ -18,8 +18,8 @@ oneapi_data_types_map_to_cpp = {
 weights_names_map = {
     "a": "alpha",
     "b": "bias",
-    "d": "depthwise",
-    "p": "pointwise",
+    "d": "depthwise_weights",
+    "p": "pointwise_weights",
     "s": "scale",
     "w": "weights",
     "z": "zero_bias"
@@ -95,8 +95,7 @@ class OneApiWriter(Writer):
                         newline += indent + create_buffer
                         newline += indent + load_weights
                     dcpp_definition = layer.definition_dpcpp()
-                    if dcpp_definition is not None:
-                        newline += indent + dcpp_definition + "\n"
+                    newline += indent + dcpp_definition + "\n"
                 output_memory = f"{model.outputs[0]}_memory"
                 if model.sequential: # memory reuse optimization
                     output_layer = model.graph.get(model.outputs[0])
@@ -116,7 +115,6 @@ class OneApiWriter(Writer):
 
         indent = '    '
         for line in f.readlines():
-
             if 'MYPROJECT' in line:
                 newline = line.replace('MYPROJECT',format(model.config.get_project_name().upper()))
             elif 'void myproject(' in line:

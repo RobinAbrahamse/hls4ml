@@ -73,8 +73,8 @@ conv_config_template = """
     auto {layer_name}_desc = dnnl::convolution_forward::desc(
             dnnl::prop_kind::forward_inference,
             dnnl::algorithm::convolution_direct, {input_desc}, {layer_name}_weights_md,
-            {layer_name}_bias_md, {layer_name}_output_md, {layer_name}_strides, {layer_name}_padding_l,
-            {layer_name}_padding_r);
+            {layer_name}_bias_md, {layer_name}_output_md, {layer_name}_strides, 
+            {layer_name}_padding_l, {layer_name}_padding_r);
 
     auto {layer_name}_prim_desc = dnnl::convolution_forward::primitive_desc({layer_name}_desc, eng);
 
@@ -113,7 +113,8 @@ pooling_config_template = """
     auto {layer_name}_desc = dnnl::pooling_forward::desc(
             dnnl::prop_kind::forward_inference,
             dnnl::algorithm::pooling_{pool_op}, {input_desc}, {layer_name}_output_md,
-            {layer_name}_strides, {layer_name}_kernel, {layer_name}_padding_l, {layer_name}_padding_r);
+            {layer_name}_strides, {layer_name}_kernel, 
+            {layer_name}_padding_l, {layer_name}_padding_r);
 
     auto {layer_name}_prim_desc = dnnl::pooling_forward::primitive_desc({layer_name}_desc, eng);
 
