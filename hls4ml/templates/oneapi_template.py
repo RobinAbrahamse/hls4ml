@@ -11,7 +11,8 @@ input_config_template = """
     auto input_data_md = dnnl::memory::desc({{
             {{input_data_dims}},
             dnnl::memory::data_type::{data_type},
-            dnnl::memory::format_tag::any}});\n"""
+            dnnl::memory::format_tag::any}});
+    """
 
 memory_config_template = """
     dnnl::memory::dims {layer_name}_{memory_object}_dims = {{{dims}}};
@@ -24,7 +25,8 @@ memory_config_template = """
     auto {layer_name}_{memory_object}_md = dnnl::memory::desc({{
             {{{layer_name}_{memory_object}_dims}},
             dnnl::memory::data_type::{data_type},
-            dnnl::memory::format_tag::any}});\n"""
+            dnnl::memory::format_tag::any}});
+    """
 
 dense_config_template = """
     // Dense layer
@@ -56,7 +58,8 @@ dense_config_template = """
             {{DNNL_ARG_WEIGHTS, {layer_name}_weights_memory}},
             {{DNNL_ARG_BIAS, {layer_name}_bias_memory}},
             {{DNNL_ARG_DST, {output_memory}}}}});
-    //\n"""
+    //
+    """
 
 conv_config_template = """
     // Convolution layer
@@ -95,7 +98,8 @@ conv_config_template = """
             {{DNNL_ARG_WEIGHTS, {layer_name}_weights_memory}},
             {{DNNL_ARG_BIAS, {layer_name}_bias_memory}},
             {{DNNL_ARG_DST, {output_memory}}}}});
-    //\n"""
+    //
+    """
 
 pooling_config_template = """
     // Pooling layer
@@ -123,7 +127,8 @@ pooling_config_template = """
     net.push_back(dnnl::pooling_forward({layer_name}_prim_desc));
     net_args.push_back({{{{DNNL_ARG_SRC, {input_memory}}},
             {{DNNL_ARG_DST, {output_memory}}}}});
-    //\n"""
+    //
+    """
 
 addsub_config_template = """
     // Add/Subtract layer
@@ -134,7 +139,8 @@ addsub_config_template = """
     net.push_back(dnnl::sum({layer_name}_prim_desc));
     net_args.push_back({{{input_args},
             {{DNNL_ARG_DST, {output_memory}}}}});
-    //\n"""
+    //
+    """
 
 eltwise_config_template = """
     // {type} activation layer
@@ -148,7 +154,8 @@ eltwise_config_template = """
     net.push_back(dnnl::eltwise_forward({layer_name}_prim_desc));
     net_args.push_back({{{{DNNL_ARG_SRC, {input_memory}}},
             {{DNNL_ARG_DST, {output_memory}}}}});
-    //\n"""
+    //
+    """
 
 softmax_config_template = """
     // Softmax activation layer
@@ -160,7 +167,8 @@ softmax_config_template = """
     net.push_back(dnnl::softmax_forward({layer_name}_prim_desc));
     net_args.push_back({{{{DNNL_ARG_SRC, {input_memory}}},
             {{DNNL_ARG_DST, {output_memory}}}}});
-    //\n"""
+    //
+    """
 
 batchnormalization_config_template = """
     // Batch Normalization layer
@@ -179,7 +187,8 @@ batchnormalization_config_template = """
             {{DNNL_ARG_SCALE_SHIFT, {layer_name}_scale_memory}},
             {{DNNL_ARG_SCALE_SHIFT + 1, {layer_name}_bias_memory}},
             {{DNNL_ARG_DST, {output_memory}}}}});
-    //\n"""
+    //
+    """
 
 class OneAPI(Backend):
     def __init__(self):
